@@ -1,0 +1,14 @@
+/node_modules
+/.next
+/public
+
+*.ico
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+*.ttf
+*.otf
+*.woff
+*.woff2
