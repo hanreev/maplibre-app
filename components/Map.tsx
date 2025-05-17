@@ -1,9 +1,10 @@
 'use client';
 
-import 'maplibre-gl/dist/maplibre-gl.css';
 import '@watergis/maplibre-gl-legend/dist/maplibre-gl-legend.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
-import classNames from 'classnames';
+import clsx from 'clsx';
+import _ from 'lodash';
 import maplibregl, {
   RasterLayerSpecification,
   StyleOptions,
@@ -12,16 +13,16 @@ import maplibregl, {
 } from 'maplibre-gl';
 import MinimapControl, { MiniMapOptions } from 'maplibregl-minimap';
 import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import esriHybridStyle from '@/assets/styles/esri-hybrid.json';
+import { MousePositionControl } from '@/lib/controls/MousePositionControl';
 import { MaplibreLegendControl } from '@watergis/maplibre-gl-legend';
 
 interface Props {
   ref?: React.RefObject<{ mapRef: React.RefObject<maplibregl.Map | null> }>;
   className?: string;
 }
-
-// mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN!;
 
 const basemapStyle: StyleSpecification = {
   version: 8,
@@ -80,7 +81,7 @@ const basemapStyle: StyleSpecification = {
   },
   layers: [
     {
-      id: 'basemap',
+      id: 'Basemap',
       type: 'raster',
       source: 'esri-satellite',
     },
@@ -122,11 +123,15 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
       style: map.getStyle(),
     });
     map.addControl(minimapRef.current, 'bottom-left');
+
+    const legendControl = map._controls.find(c => c instanceof MaplibreLegendControl);
+    legendControl?.redraw();
   };
 
   useEffect(() => {
+    if (!mapRef.current) return;
+
     const map = mapRef.current;
-    if (!map) return;
 
     if (basemapPreset === 'esri-hybrid') {
       setStyle(map, esriHybridStyle as StyleSpecification);
@@ -134,9 +139,14 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
     }
 
     if (Object.keys(basemapStyle.sources).includes(basemapPreset)) {
-      const basemapStyle$ = JSON.parse(JSON.stringify(basemapStyle)) as StyleSpecification;
-      (basemapStyle$.layers[0] as RasterLayerSpecification).source = basemapPreset;
-      setStyle(map, basemapStyle$);
+      const style = JSON.parse(JSON.stringify(basemapStyle)) as StyleSpecification;
+      style.sources = {
+        [basemapPreset]: style.sources[basemapPreset],
+      };
+      const layerSpec = style.layers[0] as RasterLayerSpecification;
+      layerSpec.source = basemapPreset;
+      layerSpec.id = _.startCase(basemapPreset.replaceAll('-', ' '));
+      setStyle(map, style);
       return;
     }
   }, [basemapPreset]);
@@ -159,6 +169,18 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
     );
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
     map.addControl(new maplibregl.GlobeControl(), 'top-right');
+    map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+    map.addControl(new MousePositionControl(), 'bottom-right');
+    map.addControl(
+      new maplibregl.GeolocateControl({
+        fitBoundsOptions: {
+          zoom: 18,
+          duration: 1000,
+        },
+        showUserLocation: true,
+      }),
+      'top-right',
+    );
 
     minimapRef.current = new MinimapControl({
       ...minimapOptions,
@@ -180,6 +202,7 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
 
     map.on('click', e => {
       console.log(e.lngLat, e.point);
+      toast.info(`${e.lngLat.lng}, ${e.lngLat.lat}`);
     });
 
     mapRef.current = map;
@@ -191,17 +214,17 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
   }, []);
 
   return (
-    <div className={classNames(className, 'flex flex-col min-h-[400px] relative')}>
+    <div className={clsx(className, 'flex flex-col min-h-[400px] relative')}>
       <div id="map" className="flex-1"></div>
-      <div className="absolute top-4 left-4 bg-white text-black dark:bg-gray-900 dark:text-white rounded ring-2 ring-black/20 dark:ring-white/20 overflow-hidden flex">
+      <div className="absolute top-4 left-4 bg-secondary text-secondary-foreground rounded ring-2 ring-black/20 dark:ring-white/20 overflow-hidden flex">
         {basemapPresets.map((preset, i) => (
           <button
             key={preset}
             onClick={() => {
               setBasemapPreset(preset);
             }}
-            className={classNames('px-4 py-2 cursor-pointer capitalize', {
-              'bg-blue-200 dark:bg-gray-600': basemapPreset === preset,
+            className={clsx('px-4 py-2 cursor-pointer capitalize', {
+              'bg-secondary-foreground/20': basemapPreset === preset,
               'border-l border-black/20': i > 0,
             })}
           >
