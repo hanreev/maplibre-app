@@ -12,6 +12,16 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-const eslintConfig = [...compat.extends('next/core-web-vitals', 'next/typescript'), prettier];
+const eslintConfig = [
+  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  prettier,
+  {
+    rules: {
+      'object-shorthand': ['error', 'always'],
+      'prefer-destructuring': 'warn',
+      '@typescript-eslint/consistent-type-imports': 'error',
+    },
+  },
+];
 
 export default eslintConfig;

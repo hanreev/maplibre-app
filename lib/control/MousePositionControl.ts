@@ -1,6 +1,6 @@
 import './mouse-position-control.css';
 
-import { ControlPosition, IControl, Map, MapMouseEvent } from 'maplibre-gl';
+import type { ControlPosition, IControl, Map, MapMouseEvent } from 'maplibre-gl';
 
 export interface MousePositionControlOptions {
   precision?: number;

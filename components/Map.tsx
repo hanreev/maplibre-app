@@ -3,92 +3,25 @@
 import '@watergis/maplibre-gl-legend/dist/maplibre-gl-legend.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
+import chroma from 'chroma-js';
 import clsx from 'clsx';
 import _ from 'lodash';
-import maplibregl, {
-  RasterLayerSpecification,
-  StyleOptions,
-  StyleSpecification,
-  StyleSwapOptions,
-} from 'maplibre-gl';
-import MinimapControl, { MiniMapOptions } from 'maplibregl-minimap';
+import maplibregl from 'maplibre-gl';
+import type { MiniMapOptions } from 'maplibregl-minimap';
+import MinimapControl from 'maplibregl-minimap';
 import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import esriHybridStyle from '@/assets/styles/esri-hybrid.json';
-import { MousePositionControl } from '@/lib/controls/MousePositionControl';
+import { MousePositionControl } from '@/lib/control/MousePositionControl';
+import type { BasemapPreset } from '@/lib/map/basemap-style';
+import { basemapPresets, basemapStyle } from '@/lib/map/basemap-style';
+import { cast } from '@/lib/utils';
 import { MaplibreLegendControl } from '@watergis/maplibre-gl-legend';
 
 interface Props {
   ref?: React.RefObject<{ mapRef: React.RefObject<maplibregl.Map | null> }>;
   className?: string;
 }
-
-const basemapStyle: StyleSpecification = {
-  version: 8,
-  name: 'Basemap',
-  projection: { type: 'globe' },
-  sources: {
-    'esri-satellite': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-      maxzoom: 18,
-      attribution: '<a href="https://www.esri.com" target="_blank">&copy; Esri</a>',
-    },
-    'google-roads': {
-      type: 'raster',
-      tiles: [
-        'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-      ],
-      tileSize: 256,
-      attribution: '<a href="https://www.google.com/maps" target="_blank">&copy; Google Maps</a>',
-    },
-    'google-terrain': {
-      type: 'raster',
-      tiles: [
-        'https://mt0.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
-        'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
-        'https://mt2.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
-      ],
-      tileSize: 256,
-      attribution: '<a href="https://www.google.com/maps" target="_blank">&copy; Google Maps</a>',
-    },
-    'google-hybrid': {
-      type: 'raster',
-      tiles: [
-        'https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-        'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-        'https://mt2.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-      ],
-      tileSize: 256,
-      attribution: '<a href="https://www.google.com/maps" target="_blank">&copy; Google Maps</a>',
-    },
-    'google-satellite': {
-      type: 'raster',
-      tiles: [
-        'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        'https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-      ],
-      tileSize: 256,
-      attribution: '<a href="https://www.google.com/maps" target="_blank">&copy; Google Maps</a>',
-    },
-  },
-  layers: [
-    {
-      id: 'Basemap',
-      type: 'raster',
-      source: 'esri-satellite',
-    },
-  ],
-};
-
-const basemapPresets = ['esri-hybrid', ...Object.keys(basemapStyle.sources)];
 
 const minimapOptions: MiniMapOptions = {
   id: 'minimap',
@@ -100,7 +33,7 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
   const mapRef = useRef<maplibregl.Map>(null);
   const minimapRef = useRef<MinimapControl>(null);
 
-  const [basemapPreset, setBasemapPreset] = useState<string>(basemapPresets[0]);
+  const [basemapPreset, setBasemapPreset] = useState<BasemapPreset>('esri-hybrid');
 
   useImperativeHandle(
     ref,
@@ -110,51 +43,26 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
     [],
   );
 
-  const setStyle = (
-    map: maplibregl.Map,
-    style: StyleSpecification | string | null,
-    options?: StyleSwapOptions & StyleOptions,
-  ) => {
-    map.setStyle(style, options);
-
-    if (minimapRef.current) map.removeControl(minimapRef.current);
-    minimapRef.current = new MinimapControl({
-      ...minimapOptions,
-      style: map.getStyle(),
-    });
-    map.addControl(minimapRef.current, 'bottom-left');
-
-    const legendControl = map._controls.find(c => c instanceof MaplibreLegendControl);
-    legendControl?.redraw();
-  };
-
   useEffect(() => {
     if (!mapRef.current) return;
 
     const map = mapRef.current;
+    const minimap = minimapRef.current
+      ? cast<{ _minimap: maplibregl.Map }>(minimapRef.current)._minimap
+      : undefined;
 
-    if (basemapPreset === 'esri-hybrid') {
-      setStyle(map, esriHybridStyle as StyleSpecification);
-      return;
-    }
-
-    if (Object.keys(basemapStyle.sources).includes(basemapPreset)) {
-      const style = JSON.parse(JSON.stringify(basemapStyle)) as StyleSpecification;
-      style.sources = {
-        [basemapPreset]: style.sources[basemapPreset],
-      };
-      const layerSpec = style.layers[0] as RasterLayerSpecification;
-      layerSpec.source = basemapPreset;
-      layerSpec.id = _.startCase(basemapPreset.replaceAll('-', ' '));
-      setStyle(map, style);
-      return;
-    }
+    const layerIds = basemapPresets[basemapPreset];
+    basemapStyle.layers.forEach(layer => {
+      const visibility = layerIds.includes(layer.id) ? 'visible' : 'none';
+      map.setLayoutProperty(layer.id, 'visibility', visibility);
+      minimap?.setLayoutProperty(layer.id, 'visibility', visibility);
+    });
   }, [basemapPreset]);
 
   useEffect(() => {
     const map = new maplibregl.Map({
       container: 'map',
-      style: esriHybridStyle as StyleSpecification,
+      style: basemapStyle,
       center: [110.3644, -7.8041],
       zoom: 9,
       attributionControl: false,
@@ -184,7 +92,7 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
 
     minimapRef.current = new MinimapControl({
       ...minimapOptions,
-      style: esriHybridStyle as StyleSpecification,
+      style: basemapStyle,
     });
     map.addControl(minimapRef.current, 'bottom-left');
 
@@ -194,10 +102,84 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
       map.addControl(
         new MaplibreLegendControl(
           {},
-          { showDefault: true, showCheckbox: true, reverseOrder: false, onlyRendered: false },
+          { showDefault: true, showCheckbox: true, reverseOrder: true, onlyRendered: false },
         ),
         'bottom-right',
       );
+
+      map.addSource('smca-getas', {
+        type: 'vector',
+        tiles: [
+          'https://server2.karomap.com/geoserver/gwc/service/tms/1.0.0/simerakati-getas:SMCA Getas@EPSG:900913@pbf/{z}/{x}/{y}.pbf?flipY=true',
+        ],
+        maxzoom: 14,
+        bounds: [111.3234622710313, -7.382109061396001, 111.46195546778138, -7.254336658274222],
+      });
+
+      const popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+      });
+
+      const colorPalette = chroma.scale(['red', 'yellow', 'green']).colors(3);
+      const colorMap = {
+        rendah: colorPalette[0],
+        sedang: colorPalette[1],
+        tinggi: colorPalette[2],
+      };
+
+      for (const klass in colorMap) {
+        const layerId = `smca-getas-${klass}`;
+
+        map.addLayer({
+          id: layerId,
+          metadata: {
+            group: 'SMCA Getas',
+            title: `SMCA Getas - ${_.capitalize(klass)}`,
+          },
+          type: 'fill',
+          source: 'smca-getas',
+          'source-layer': 'SMCA Getas',
+          filter: ['==', 'kelas', klass],
+          paint: {
+            'fill-color': colorMap[klass as keyof typeof colorMap],
+            'fill-opacity': 0.5,
+            'fill-outline-color': '#000000',
+          },
+        });
+
+        map.on('mousemove', layerId, e => {
+          const feature = e.features?.[0];
+          if (!feature) return;
+          map.getCanvas().style.cursor = 'pointer';
+          popup
+            .setLngLat(e.lngLat)
+            .setHTML(
+              `<div class="text-sm text-black grid grid-cols-2 gap-x-2">
+              <div>ID</div>
+              <div>: ${feature.id}</div>
+              <div>Kelas</div>
+              <div>: ${feature.properties.kelas}</div>
+              <div>Luas</div>
+              <div>: ${feature.properties.luas.toFixed(2)} km<sup>2</sup></div>
+            </div>`,
+            )
+            .addTo(map);
+        });
+
+        map.on('mouseleave', layerId, () => {
+          map.getCanvas().style.cursor = '';
+          popup.remove();
+        });
+      }
+    });
+
+    map.once('idle', () => {
+      const source = map.getSource<maplibregl.VectorTileSource>('smca-getas');
+      if (source?.bounds) {
+        const bounds = maplibregl.LngLatBounds.convert(source.bounds);
+        if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 100 });
+      }
     });
 
     map.on('click', e => {
@@ -217,11 +199,11 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
     <div className={clsx(className, 'flex flex-col min-h-[400px] relative')}>
       <div id="map" className="flex-1"></div>
       <div className="absolute top-4 left-4 bg-secondary text-secondary-foreground rounded ring-2 ring-black/20 dark:ring-white/20 overflow-hidden flex">
-        {basemapPresets.map((preset, i) => (
+        {Object.keys(basemapPresets).map((preset, i) => (
           <button
             key={preset}
             onClick={() => {
-              setBasemapPreset(preset);
+              setBasemapPreset(preset as BasemapPreset);
             }}
             className={clsx('px-4 py-2 cursor-pointer capitalize', {
               'bg-secondary-foreground/20': basemapPreset === preset,
