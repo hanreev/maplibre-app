@@ -1,0 +1,6 @@
+.maplibregl-ctrl.maplibregl-ctrl-legend {
+  background-color: var(--color-secondary);
+  color: var(--color-secondary-foreground);
+  padding: 8px 0;
+  border-radius: 4px;
+}

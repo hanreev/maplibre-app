@@ -12,6 +12,7 @@ import MinimapControl from 'maplibregl-minimap';
 import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { LegendControl } from '@/lib/control/LegendControl';
 import { MousePositionControl } from '@/lib/control/MousePositionControl';
 import type { BasemapPreset } from '@/lib/map/basemap-style';
 import { basemapPresets, basemapStyle } from '@/lib/map/basemap-style';
@@ -106,6 +107,8 @@ const Map: React.FC<Props> = ({ ref, className = 'flex-1' }) => {
         ),
         'bottom-right',
       );
+
+      map.addControl(new LegendControl(), 'bottom-right');
 
       map.addSource('smca-getas', {
         type: 'vector',
